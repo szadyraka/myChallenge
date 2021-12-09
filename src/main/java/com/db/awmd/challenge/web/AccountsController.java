@@ -3,6 +3,8 @@ package com.db.awmd.challenge.web;
 import com.db.awmd.challenge.domain.Account;
 import com.db.awmd.challenge.exception.DuplicateAccountIdException;
 import com.db.awmd.challenge.service.AccountsService;
+import com.db.awmd.challenge.exception.TransferMoneyException;
+import com.db.awmd.challenge.web.request.TransferMoneyRequest;
 import javax.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +47,17 @@ public class AccountsController {
   public Account getAccount(@PathVariable String accountId) {
     log.info("Retrieving account for id {}", accountId);
     return this.accountsService.getAccount(accountId);
+  }
+
+  @PostMapping(value = "/transfer")
+  public ResponseEntity<Object> transfer(@RequestBody @Valid TransferMoneyRequest request) {
+    log.info("Transfer money details: {}", request);
+    try {
+      accountsService.transfer(request.getSourceAccountId(), request.getTargetAccountId(), request.getAmount());
+    } catch (TransferMoneyException ex) {
+      return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_ACCEPTABLE);
+    }
+    return new ResponseEntity<>(HttpStatus.OK);
   }
 
 }
