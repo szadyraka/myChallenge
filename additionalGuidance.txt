@@ -1,0 +1,11 @@
+Additional guidance (my suggestions):
+
+1. Adding Database support including Hibernate and Spring Data JPA
+   (also using DB in memory for unit tests)
+2. Exception handling improvements - using Spring @ControllerAdvice
+   (removing exception checking logic from the controller level)
+3. DTO(data transfer objects using for requests) and entities(using inside application)
+   must be different objects.
+   I would add mapper (Mapstruct for example) and map required objects on a service level.
+4. Adding Swagger with UI (for documentation generating and creating UI for the REST service)
+5. Adding Spring Boot Actuator for monitoring our app

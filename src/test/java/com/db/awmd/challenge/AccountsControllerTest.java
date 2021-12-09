@@ -7,6 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup;
 
+import static com.db.awmd.challenge.AccountsServiceTest.SOURCE_ACCOUNT_ID;
+import static com.db.awmd.challenge.AccountsServiceTest.SOURCE_ACCOUNT_BALANCE;
+import static com.db.awmd.challenge.AccountsServiceTest.TARGET_ACCOUNT_ID;
+import static com.db.awmd.challenge.AccountsServiceTest.TARGET_ACCOUNT_BALANCE;
+
 import com.db.awmd.challenge.domain.Account;
 import com.db.awmd.challenge.service.AccountsService;
 import java.math.BigDecimal;
@@ -101,4 +106,117 @@ public class AccountsControllerTest {
       .andExpect(
         content().string("{\"accountId\":\"" + uniqueAccountId + "\",\"balance\":123.45}"));
   }
+
+  @Test
+  public void transfer() throws Exception {
+    createAccount(SOURCE_ACCOUNT_ID, SOURCE_ACCOUNT_BALANCE);
+    createAccount(TARGET_ACCOUNT_ID, TARGET_ACCOUNT_BALANCE);
+
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":150.55}"))
+            .andExpect(status().isOk());
+
+    Account sourceAccount = accountsService.getAccount(SOURCE_ACCOUNT_ID);
+    assertThat(sourceAccount.getBalance()).isEqualTo(new BigDecimal("400.00"));
+
+    Account targetAccount = accountsService.getAccount(TARGET_ACCOUNT_ID);
+    assertThat(targetAccount.getBalance()).isEqualTo(new BigDecimal("550.80"));
+  }
+
+  @Test
+  public void transferNegativeAmount() throws Exception {
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":-10.50}"))
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  public void transferEmptyAccountId() throws Exception {
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"\"," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":10.50}"))
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  public void transferNullAccountId() throws Exception {
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":null," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":10.50}"))
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  public void transferWrongBody() throws Exception {
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":10.50}"))
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  public void transferNoBody() throws Exception {
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  public void transferWrongAmountDigits() throws Exception {
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":10.555}"))
+            .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  public void transferDuplicateAccount() throws Exception {
+    createAccount(SOURCE_ACCOUNT_ID, SOURCE_ACCOUNT_BALANCE);
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"targetAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"amount\":120.34}"))
+            .andExpect(status().isNotAcceptable())
+            .andExpect(content().string("Accounts for transferring money must be different: " +
+                    "sourceAccountId = " + SOURCE_ACCOUNT_ID + ", " +
+                    "targetAccountId = " + SOURCE_ACCOUNT_ID));
+  }
+
+  @Test
+  public void transferMissingAccount() throws Exception {
+    createAccount(SOURCE_ACCOUNT_ID, SOURCE_ACCOUNT_BALANCE);
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":10.55}"))
+            .andExpect(status().isNotAcceptable())
+            .andExpect(content().string("Account id = " + TARGET_ACCOUNT_ID + " not found!"));
+  }
+
+  @Test
+  public void transferNotEnoughBalanceAccount() throws Exception {
+    createAccount(SOURCE_ACCOUNT_ID, SOURCE_ACCOUNT_BALANCE);
+    createAccount(TARGET_ACCOUNT_ID, TARGET_ACCOUNT_BALANCE);
+    this.mockMvc.perform(post("/v1/accounts/transfer").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"sourceAccountId\":\"" + SOURCE_ACCOUNT_ID + "\"," +
+                    "\"targetAccountId\":\"" + TARGET_ACCOUNT_ID + "\"," +
+                    "\"amount\":750.34}"))
+            .andExpect(status().isNotAcceptable())
+            .andExpect(content().string("Failed to transfer money between accounts: " +
+                    "sourceAccountId = " + SOURCE_ACCOUNT_ID + ", " +
+                    "targetAccountId = " + TARGET_ACCOUNT_ID));
+  }
+
+  private void createAccount(String accountId, BigDecimal balance){
+    Account sourceAccount = new Account(accountId);
+    sourceAccount.setBalance(balance);
+    accountsService.createAccount(sourceAccount);
+  }
+
 }
